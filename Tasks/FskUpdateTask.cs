@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -13,6 +14,10 @@ namespace JFSKU.Tasks;
 
 public sealed class FskUpdateTask : IScheduledTask
 {
+    private static readonly Regex GermanRatingPattern = new(
+        @"^(?:FSK|DE)[\s\-:]*([0-9]{1,2})$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     private readonly ILibraryManager _libraryManager;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<FskUpdateTask> _logger;
@@ -25,16 +30,15 @@ public sealed class FskUpdateTask : IScheduledTask
         _logger = logger;
     }
 
-    public string Name => "FSK-Altersfreigaben aktualisieren";
+    public string Name => "Fehlende deutsche FSK-Altersfreigaben ergänzen";
     public string Key => "JFSKUUpdateTask";
     public string Category => "Bibliothek";
-    public string Description => "Ergänzt deutsche TMDb-Altersfreigaben für Filme und Serien.";
-
-    // No automatic writes before the administrator has reviewed the settings.
+    public string Description => "Prüft Filme und Serien ohne erkannte deutsche Freigabe bei TMDb. Deutsche Freigaben bleiben unverändert.";
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => Array.Empty<TaskTriggerInfo>();
 
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
+        progress.Report(0);
         var config = Plugin.Instance?.Configuration;
         if (config is null || string.IsNullOrWhiteSpace(config.TmdbApiKey))
         {
@@ -44,38 +48,57 @@ public sealed class FskUpdateTask : IScheduledTask
         }
 
         var apiKey = config.TmdbApiKey.Trim();
-        var overwrite = config.OverwriteExisting;
         var dryRun = config.DryRun;
-        var items = _libraryManager.GetItemList(new InternalItemsQuery
+        var allItems = _libraryManager.GetItemList(new InternalItemsQuery
         {
             IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Series },
             IsVirtualItem = false,
             Recursive = true
         });
 
-        progress.Report(0);
+        var candidates = new List<BaseItem>();
+        var alreadyGerman = 0;
+        var locked = 0;
+        var missingId = 0;
+        foreach (var item in allItems)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (HasGermanRating(item.OfficialRating))
+            {
+                alreadyGerman++;
+                continue;
+            }
+            if (IsRatingLocked(item))
+            {
+                locked++;
+                continue;
+            }
+            if (!TryGetTmdbId(item, out _))
+            {
+                missingId++;
+                continue;
+            }
+            candidates.Add(item);
+        }
+
+        _logger.LogInformation(
+            "JFSKU: {Total} Einträge; {German} mit deutscher Freigabe; {Locked} gesperrt; {MissingId} ohne gültige TMDb-ID; {Candidates} Kandidaten. Testlauf: {DryRun}",
+            allItems.Count, alreadyGerman, locked, missingId, candidates.Count, dryRun);
+
         var current = 0;
-        foreach (var item in items)
+        foreach (var item in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                if (item.IsLocked || item.LockedFields.Contains(MetadataField.OfficialRating))
+                // Recheck in case metadata changed after candidate selection.
+                if (HasGermanRating(item.OfficialRating) || IsRatingLocked(item)
+                    || !TryGetTmdbId(item, out var tmdbId))
                 {
                     continue;
                 }
-
-                if (!overwrite && !string.IsNullOrWhiteSpace(item.OfficialRating))
-                {
-                    continue;
-                }
-
-                var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
-                if (long.TryParse(tmdbId, out var numericId) && numericId > 0)
-                {
-                    await ProcessItemAsync(item, numericId, apiKey, dryRun, cancellationToken);
-                    await Task.Delay(300, cancellationToken);
-                }
+                await ProcessItemAsync(item, tmdbId, apiKey, dryRun, cancellationToken);
+                await Task.Delay(300, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -83,17 +106,40 @@ public sealed class FskUpdateTask : IScheduledTask
             }
             catch (Exception ex)
             {
-                // Do not log request URLs or API keys.
                 _logger.LogWarning("JFSKU: Fehler für {Name}: {ErrorType}", item.Name, ex.GetType().Name);
             }
             finally
             {
                 current++;
-                progress.Report(100.0 * current / items.Count);
+                progress.Report(100.0 * current / candidates.Count);
             }
         }
-
         progress.Report(100);
+    }
+
+    private static bool IsRatingLocked(BaseItem item) =>
+        item.IsLocked || item.LockedFields.Contains(MetadataField.OfficialRating);
+
+    private static bool TryGetTmdbId(BaseItem item, out long id) =>
+        long.TryParse(item.GetProviderId(MetadataProvider.Tmdb),
+            NumberStyles.None, CultureInfo.InvariantCulture, out id) && id > 0;
+
+    private static bool HasGermanRating(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var normalized = value.Trim();
+        if (normalized.Equals("o.A.", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("o. A.", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("ohne Altersbeschränkung", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("keine Jugendfreigabe", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        var match = GermanRatingPattern.Match(normalized);
+        return match.Success
+            && int.TryParse(match.Groups[1].Value, NumberStyles.None,
+                CultureInfo.InvariantCulture, out var age)
+            && age is 0 or 6 or 12 or 16 or 18;
     }
 
     private async Task ProcessItemAsync(BaseItem item, long tmdbId, string apiKey,
@@ -106,23 +152,17 @@ public sealed class FskUpdateTask : IScheduledTask
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
         using var response = await client.GetAsync(
             $"https://api.themoviedb.org/3/{path}?api_key={Uri.EscapeDataString(apiKey)}", timeout.Token);
-
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("JFSKU: TMDb HTTP {Status} für {Name}", (int)response.StatusCode, item.Name);
             return;
         }
-
         using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
         using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: timeout.Token);
         var ratings = new HashSet<int>();
         foreach (var result in doc.RootElement.GetProperty("results").EnumerateArray())
         {
-            if (result.GetProperty("iso_3166_1").GetString() != "DE")
-            {
-                continue;
-            }
-
+            if (result.GetProperty("iso_3166_1").GetString() != "DE") continue;
             if (isMovie)
             {
                 foreach (var release in result.GetProperty("release_dates").EnumerateArray())
@@ -135,59 +175,41 @@ public sealed class FskUpdateTask : IScheduledTask
                 AddRating(result.GetProperty("rating").GetString(), ratings);
             }
         }
-
-        // Conflicting editions cannot be assigned safely without edition metadata.
         if (ratings.Count != 1)
         {
-            if (ratings.Count > 1)
-            {
-                _logger.LogWarning("JFSKU: Widersprüchliche deutsche Freigaben für {Name}; übersprungen.", item.Name);
-            }
+            _logger.LogInformation("JFSKU: {Name} übersprungen: {Count} eindeutige deutsche Freigaben gefunden.",
+                item.Name, ratings.Count);
             return;
         }
-
-        var rating = "FSK-" + ratings.Single().ToString(CultureInfo.InvariantCulture);
-        if (item.OfficialRating == rating)
-        {
-            return;
-        }
-
+        if (HasGermanRating(item.OfficialRating) || IsRatingLocked(item)) return;
+        var newRating = "FSK-" + ratings.Single().ToString(CultureInfo.InvariantCulture);
+        var previous = item.OfficialRating;
         if (dryRun)
         {
-            _logger.LogInformation("JFSKU Testlauf: {Name}: {OldRating} -> {NewRating}",
-                item.Name, item.OfficialRating, rating);
+            _logger.LogInformation("JFSKU Testlauf: {Name}: {OldRating} -> {NewRating}", item.Name, previous, newRating);
             return;
         }
-
-        var previous = item.OfficialRating;
-        item.OfficialRating = rating;
+        item.OfficialRating = newRating;
         try
         {
-            await _libraryManager.UpdateItemAsync(item, item.GetParent(),
-                ItemUpdateType.MetadataEdit, cancellationToken);
+            await _libraryManager.UpdateItemAsync(item, item.GetParent(), ItemUpdateType.MetadataEdit, cancellationToken);
         }
         catch
         {
             item.OfficialRating = previous;
             throw;
         }
-
-        _logger.LogInformation("JFSKU: {Name}: {OldRating} -> {NewRating}", item.Name, previous, rating);
+        _logger.LogInformation("JFSKU: {Name}: {OldRating} -> {NewRating}", item.Name, previous, newRating);
     }
 
     private static void AddRating(string? value, HashSet<int> ratings)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
+        if (string.IsNullOrWhiteSpace(value)) return;
         var normalized = value.Trim();
         if (normalized.StartsWith("FSK", StringComparison.OrdinalIgnoreCase))
         {
             normalized = normalized[3..].TrimStart(' ', '-', ':');
         }
-
         if (int.TryParse(normalized, NumberStyles.None, CultureInfo.InvariantCulture, out var age)
             && age is 0 or 6 or 12 or 16 or 18)
         {
