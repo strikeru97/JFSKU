@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "dgSpecHash": "6o6psZL6P2U=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Patrik\\Desktop\\Jellyfin.Plugin.FskMetadata\\src\\JFSKU\\JFSKU.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Patrik\\.nuget\\packages\\diacritics\\4.1.8\\diacritics.4.1.8.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\icu4n\\60.1.0-alpha.356\\icu4n.60.1.0-alpha.356.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\icu4n.transliterator\\60.1.0-alpha.356\\icu4n.transliterator.60.1.0-alpha.356.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\j2n\\2.0.0\\j2n.2.0.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.common\\12.2.0\\jellyfin.common.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.controller\\12.2.0\\jellyfin.controller.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.data\\12.2.0\\jellyfin.data.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.database.implementations\\12.2.0\\jellyfin.database.implementations.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.extensions\\12.2.0\\jellyfin.extensions.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.mediaencoding.keyframes\\12.2.0\\jellyfin.mediaencoding.keyframes.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.model\\12.2.0\\jellyfin.model.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\jellyfin.naming\\12.2.0\\jellyfin.naming.12.2.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\microsoft.entityframeworkcore\\10.0.11\\microsoft.entityframeworkcore.10.0.11.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\10.0.11\\microsoft.entityframeworkcore.abstractions.10.0.11.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\microsoft.entityframeworkcore.analyzers\\10.0.11\\microsoft.entityframeworkcore.analyzers.10.0.11.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\microsoft.entityframeworkcore.relational\\10.0.11\\microsoft.entityframeworkcore.relational.10.0.11.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\nebml\\1.1.0.5\\nebml.1.1.0.5.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\polly\\8.7.0\\polly.8.7.0.nupkg.sha512",
+    "C:\\Users\\Patrik\\.nuget\\packages\\polly.core\\8.7.0\\polly.core.8.7.0.nupkg.sha512"
+  ],
+  "logs": []
+}

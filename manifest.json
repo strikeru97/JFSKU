@@ -1,0 +1,12 @@
+[
+  {
+    "guid": "A1B2C3D4-E5F6-7890-1234-56789ABCDEF0",
+    "name": "JFSKU",
+    "description": "Holt automatisch deutsche FSK-Altersfreigaben für Filme und Serien über TMDb.",
+    "overview": "Ergänzt deutsche TMDb-Altersfreigaben im Format FSK-XX; Testlauf standardmäßig aktiv.",
+    "owner": "strikeru97",
+    "category": "Metadata",
+    "imageUrl": "https://raw.githubusercontent.com/strikeru97/JFSKU/main/logo.jpg",
+    "versions": []
+  }
+]

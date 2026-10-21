@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <title>JFSKU</title>
+</head>
+<body>
+    <div id="JfskuConfigPage" data-role="page" class="page type-interior pluginConfigurationPage">
+        <div data-role="content">
+            <div class="content-primary">
+                <h1>JFSKU (FSK Updater)</h1>
+                <p>Geben Sie Ihren TMDb API Key ein, um die deutschen Altersfreigaben (FSK) zu laden.</p>
+                <form id="JfskuConfigForm">
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDb API Key:</label>
+                        <input type="password" autocomplete="off" id="TmdbApiKey" name="TmdbApiKey" is="emby-input" required />
+                        <div class="fieldDescription">Erhalten Sie einen Key unter themoviedb.org</div>
+                    </div>
+                    
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input type="checkbox" is="emby-checkbox" id="OverwriteExisting" />
+                            <span>Vorhandene Altersfreigaben überschreiben</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Deaktiviert: Alle vorhandenen Altersfreigaben bleiben erhalten. Gesperrte Metadaten werden übersprungen.</div>
+                    </div>
+
+                    <div class="checkboxContainer">
+                        <label><input type="checkbox" is="emby-checkbox" id="DryRun" />
+                        <span>Testlauf: nur protokollieren, nichts speichern</span></label>
+                    </div>
+                    <p>This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.</p>
+                    <div>
+                        <button is="emby-button" type="button" class="raised button-alt" id="TestApiBtn">API Key testen</button>
+                    </div>
+                    <br />
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                var pluginId = 'A1B2C3D4-E5F6-7890-1234-56789ABCDEF0';
+                var page = document.getElementById('JfskuConfigPage');
+                function field(id) { return page.querySelector('#' + id); }
+                function fail() { Dashboard.alert('Anfrage fehlgeschlagen. Verbindung und Serverprotokoll prüfen.'); }
+
+                page.addEventListener('pageshow', async function () {
+                    Dashboard.showLoadingMsg();
+                    try {
+                        var config = await ApiClient.getPluginConfiguration(pluginId);
+                        field('TmdbApiKey').value = config.TmdbApiKey || '';
+                        field('OverwriteExisting').checked = !!config.OverwriteExisting;
+                        field('DryRun').checked = config.DryRun !== false;
+                    } catch (error) { fail(); }
+                    finally { Dashboard.hideLoadingMsg(); }
+                });
+
+                field('TestApiBtn').addEventListener('click', async function () {
+                    var apiKey = field('TmdbApiKey').value.trim();
+                    if (!apiKey) { Dashboard.alert('Bitte zuerst einen TMDb API-Key eingeben.'); return; }
+                    Dashboard.showLoadingMsg();
+                    try {
+                        var response = await ApiClient.ajax({
+                            type: 'POST',
+                            url: ApiClient.getUrl('JFSKU/TestTmdbKey'),
+                            contentType: 'application/json',
+                            dataType: 'json',
+                            data: JSON.stringify({ ApiKey: apiKey })
+                        });
+                        Dashboard.alert(response.message || response.Message || 'Keine Antwort.');
+                    } catch (error) { fail(); }
+                    finally { Dashboard.hideLoadingMsg(); }
+                });
+
+                field('JfskuConfigForm').addEventListener('submit', async function (event) {
+                    event.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    try {
+                        var config = await ApiClient.getPluginConfiguration(pluginId);
+                        config.TmdbApiKey = field('TmdbApiKey').value.trim();
+                        config.OverwriteExisting = field('OverwriteExisting').checked;
+                        config.DryRun = field('DryRun').checked;
+                        var result = await ApiClient.updatePluginConfiguration(pluginId, config);
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    } catch (error) { fail(); }
+                    finally { Dashboard.hideLoadingMsg(); }
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

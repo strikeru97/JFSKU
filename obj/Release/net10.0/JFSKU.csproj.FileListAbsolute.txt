@@ -1,0 +1,12 @@
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\bin\Release\net10.0\JFSKU.deps.json
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\bin\Release\net10.0\JFSKU.dll
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\bin\Release\net10.0\JFSKU.pdb
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.csproj.AssemblyReference.cache
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.AssemblyInfoInputs.cache
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.AssemblyInfo.cs
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.csproj.CoreCompileInputs.cache
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.dll
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\refint\JFSKU.dll
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\JFSKU.pdb
+C:\Users\Patrik\Desktop\Jellyfin.Plugin.FskMetadata\src\JFSKU\obj\Release\net10.0\ref\JFSKU.dll
