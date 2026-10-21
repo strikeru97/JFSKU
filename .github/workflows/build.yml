@@ -1,0 +1,130 @@
+name: Build and Release JFSKU
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "10.0.x"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Determine release version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Use a tag such as v1.0.0.0"
+            exit 1
+          fi
+          echo "PLUGIN_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Restore dependencies
+        run: dotnet restore JFSKU.csproj
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ -n "${PLUGIN_VERSION:-}" ]]; then
+            ARGS+=("-p:Version=$PLUGIN_VERSION")
+          fi
+          dotnet build JFSKU.csproj -c Release --no-restore -o out "${ARGS[@]}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JFSKU-build
+          path: out/JFSKU.dll
+          if-no-files-found: error
+
+      - name: Package release
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cd out
+          zip "../artifacts/JFSKU_${RELEASE_TAG}.zip" JFSKU.dll
+
+      - name: Upload release package
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" "artifacts/JFSKU_${RELEASE_TAG}.zip" --clobber
+
+  update-manifest:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: jfsku-manifest-update
+      cancel-in-progress: false
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Download release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir -p artifacts
+          gh release download "$RELEASE_TAG" --pattern "JFSKU_${RELEASE_TAG}.zip" --dir artifacts
+
+      - name: Update manifest
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          ARCHIVE="JFSKU_${RELEASE_TAG}.zip"
+          URL="https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}/${ARCHIVE}"
+          MD5="$(md5sum "artifacts/${ARCHIVE}" | awk '{print $1}')"
+          jq --arg version "$VERSION" --arg url "$URL" --arg md5 "$MD5"             --arg date "$(date --utc +%Y-%m-%dT%H:%M:%SZ)"             '.[0].versions = ([{version: $version, changelog: "Release", targetAbi: "12.2.0.0", sourceUrl: $url, checksum: $md5, timestamp: $date}] + [(.[0].versions // [])[] | select(.version != $version)] | sort_by(.version | split(".") | map(tonumber)) | reverse)'             manifest.json > manifest.tmp.json
+          mv manifest.tmp.json manifest.json
+
+      - name: Commit manifest
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Update JFSKU release manifest"
+          git push origin "HEAD:${DEFAULT_BRANCH}"
